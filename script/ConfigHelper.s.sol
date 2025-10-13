@@ -17,7 +17,8 @@ contract ConfigHelper is Script {
 
     uint256 constant LOCAL_CHAINID = 31337;
     address constant LOCAL_ACCOUNT = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-    address constant LOCAL_SIGNER = 0xa0Ee7A142d267C1f36714E4a8F75612F20a79720;
+    // PK: 0xf15be32016c90625ac18f07598c5674edeb343fe54e741e1a8edc1c043cef49a
+    address constant LOCAL_SIGNER = 0x6A7f3cc53eeE9746bf17e12a61ee69641B116f42;
 
     mapping(uint256 => NetworkConfig) public networkConfigs;
 
