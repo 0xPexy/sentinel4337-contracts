@@ -28,8 +28,6 @@ contract VerifyingPaymaster is BasePaymaster {
     event Sponsored(bytes32 indexed userOpHash, address indexed sender, uint48 validUntil, uint48 validAfter);
 
     error InvalidSingatureLength();
-    error InvalidSubsidy();
-    error InvalidTargetOrSelector();
 
     constructor(IEntryPoint entryPoint, address signer) BasePaymaster(entryPoint) {
         policySigner = signer;
