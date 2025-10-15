@@ -7,11 +7,12 @@ import {SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS} from "@account-abstractio
 import {ECDSA} from "@solady/utils/ECDSA.sol";
 
 contract SentinelAccount is BaseAccount {
-    IEntryPoint private immutable _entryPoint = IEntryPoint(0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108);
+    IEntryPoint private immutable _entryPoint;
     address public owner;
 
     error InvalidExecutor();
     error NonOwner();
+
     event OwnerChanged(address indexed newOwner);
 
     constructor(IEntryPoint ep, address _owner) {

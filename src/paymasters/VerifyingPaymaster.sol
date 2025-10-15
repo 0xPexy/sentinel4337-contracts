@@ -19,6 +19,7 @@ contract VerifyingPaymaster is BasePaymaster {
     // Paymaster data layout sizes used in paymasterAndData prefix (without signature)
     // validUntil(6) | validAfter(6) | target(20) | selector(4) | subsidyBps(2)
     uint256 internal constant PAYMASTER_DATA_SIZE = 6 + 6 + 20 + 4 + 2; // 38
+
     struct PaymasterData {
         uint48 validUntil;
         uint48 validAfter;
@@ -33,7 +34,7 @@ contract VerifyingPaymaster is BasePaymaster {
 
     error InvalidSingatureLength();
 
-    constructor(IEntryPoint entryPoint, address signer) BasePaymaster(entryPoint) {
+    constructor(IEntryPoint _entryPoint, address signer) BasePaymaster(_entryPoint) {
         policySigner = signer;
     }
 
@@ -58,20 +59,17 @@ contract VerifyingPaymaster is BasePaymaster {
         // which creates a circular dependency. Recompute a temporary hash that excludes the policy signature.
         bool sigFailed;
         {
-            (, uint256 validationGasLimit, uint256 postOpGasLimit) =
-                UserOperationLib.unpackPaymasterStaticFields(userOp.paymasterAndData);
-
             bytes memory pmDataPrefix = _paymasterDataPrefix(userOp.paymasterAndData);
             PackedUserOperation memory userOpNoPolicySig = userOp;
             userOpNoPolicySig.paymasterAndData = pmDataPrefix;
 
-            bytes32 tmpHash = entryPoint.getUserOpHash(userOpNoPolicySig);
-            bytes32 dataHash = _computePolicyMessage(tmpHash, paymasterData, uint128(validationGasLimit), uint128(postOpGasLimit));
-            address recovered = _recoverPolicySigner(dataHash, sig);
+            bytes32 opHash = entryPoint.getUserOpHash(userOpNoPolicySig);
+            bytes32 messageHash = ECDSA.toEthSignedMessageHash(opHash);
+            address recovered = ECDSA.recover(messageHash, sig);
             sigFailed = (recovered != policySigner);
         }
 
-        // pack validation data 
+        // pack validation data
         validationData = _packValidationData(sigFailed, paymasterData.validUntil, paymasterData.validAfter);
 
         // success
@@ -96,58 +94,18 @@ contract VerifyingPaymaster is BasePaymaster {
         signature = bytes(paymasterAndData[38:]);
     }
 
-    function getHash(bytes32 userOpHash, PaymasterData memory p, uint128 validationGasLimit, uint128 postOpGasLimit)
-        public
-        pure
-        returns (bytes32)
-    {
-        return keccak256(
-            abi.encode(
-                userOpHash,
-                p.target,
-                p.selector,
-                p.subsidyBps,
-                p.validUntil,
-                p.validAfter,
-                validationGasLimit,
-                postOpGasLimit
-            )
-        );
-    }
-
     // --- internal helpers ---
 
-    function _paymasterDataPrefix(bytes calldata paymasterAndData)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function _paymasterDataPrefix(bytes calldata paymasterAndData) internal pure returns (bytes memory) {
         // prefix until the end of PaymasterData (without trailing signature)
         return paymasterAndData[:PAYMASTER_DATA_OFFSET + PAYMASTER_DATA_SIZE];
     }
 
-    function _computePolicyMessage(
-        bytes32 tmpUserOpHash,
-        PaymasterData memory p,
-        uint128 validationGasLimit,
-        uint128 postOpGasLimit
-    ) internal pure returns (bytes32) {
-        return getHash(tmpUserOpHash, p, validationGasLimit, postOpGasLimit);
-    }
-
-    function _recoverPolicySigner(bytes32 dataHash, bytes memory sig)
-        internal
-        view
-        returns (address)
-    {
+    function _recoverPolicySigner(bytes32 dataHash, bytes memory sig) internal view returns (address) {
         return ECDSA.recover(ECDSA.toEthSignedMessageHash(dataHash), sig);
     }
 
-    function _buildContext(PaymasterData memory /*p*/, address /*sender*/)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function _buildContext(PaymasterData memory, /*p*/ address /*sender*/ ) internal pure returns (bytes memory) {
         // hook for future use (e.g., subsidy context)
         return "";
     }

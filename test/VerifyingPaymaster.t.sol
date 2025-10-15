@@ -56,6 +56,9 @@ contract VerifyingPaymasterTest is Test {
 
         hoax(depositor, PAYMASTER_DEPOSIT_AMOUNT);
         paymaster.deposit{value: PAYMASTER_DEPOSIT_AMOUNT}();
+
+        // sanity: policySigner should match the test's mock signer
+        assertEq(paymaster.policySigner(), mockSigner, "policy signer mismatch");
     }
 
     // ✅ 해피패스: target/selector 일치 → 성공
@@ -163,23 +166,14 @@ contract VerifyingPaymasterTest is Test {
 
         userOp.paymasterAndData = pmDataTemp;
 
-        // 5) userOpHash(임시) → 정책 서명
+        // 5) userOpHash(임시, 정책서명 제외) → EIP-191 digest → 정책 서명
         bytes32 tempHash = entryPoint.getUserOpHash(userOp);
-        bytes32 messageHash = keccak256(
-            abi.encode(
-                tempHash,
-                paymasterData.target,
-                paymasterData.selector,
-                paymasterData.subsidyBps,
-                paymasterData.validUntil,
-                paymasterData.validAfter,
-                PM_VAL_GAS,
-                POSTOP_GAS
-            )
-        );
-        // VerifyingPaymaster는 EIP-191 래핑으로 recover한다고 가정 → prefix 적용해 서명
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mockSignerPk, ECDSA.toEthSignedMessageHash(messageHash));
+        bytes32 digest = ECDSA.toEthSignedMessageHash(tempHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mockSignerPk, digest);
         bytes memory policySig = abi.encodePacked(r, s, v);
+        // sanity: local recover matches signer
+        address rec = ECDSA.recover(digest, policySig);
+        assertEq(rec, mockSigner, "local policy signature mismatch");
 
         // 6) 최종 paymasterAndData (정책서명 65B append)
         userOp.paymasterAndData = bytes.concat(pmDataTemp, policySig);

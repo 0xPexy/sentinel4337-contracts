@@ -25,13 +25,18 @@ contract ConfigHelper is Script {
     error ChainNotConfigured();
 
     constructor() {
-        networkConfigs[MAINNET_FORK_CHAINID] = getMainnetForkConfig();
-        networkConfigs[LOCAL_CHAINID] = getOrCreateLocalConfig();
+        // networkConfigs[MAINNET_FORK_CHAINID] = getMainnetForkConfig();
+        // networkConfigs[LOCAL_CHAINID] = getOrCreateLocalConfig();
     }
 
-    function getConfig() public view returns (NetworkConfig memory config) {
-        config = networkConfigs[block.chainid];
-        require(config.entryPoint != address(0), ChainNotConfigured());
+    function getConfig() public returns (NetworkConfig memory config) {
+        if (block.chainid == MAINNET_FORK_CHAINID) {
+            return getMainnetForkConfig();
+        }
+        if (block.chainid == LOCAL_CHAINID) {
+            return getOrCreateLocalConfig();
+        }
+        revert ChainNotConfigured();
     }
 
     function getMainnetForkConfig() public pure returns (NetworkConfig memory config) {
@@ -47,7 +52,7 @@ contract ConfigHelper is Script {
         if (networkConfig.entryPoint != address(0)) {
             return networkConfig;
         }
-        
+
         vm.startBroadcast(LOCAL_ACCOUNT);
         EntryPoint entryPoint = new EntryPoint();
         vm.stopBroadcast();
