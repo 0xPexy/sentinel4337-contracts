@@ -11,12 +11,19 @@ contract SentinelAccount is BaseAccount {
     address public owner;
 
     error InvalidExecutor();
+    error NonOwner();
     event OwnerChanged(address indexed newOwner);
 
     constructor(IEntryPoint ep, address _owner) {
         _entryPoint = ep;
         owner = _owner;
         emit OwnerChanged(owner);
+    }
+
+    function transferOwnership(address newOwner) public {
+        require(msg.sender == owner, NonOwner());
+        owner = newOwner;
+        emit OwnerChanged(newOwner);
     }
 
     function entryPoint() public view override returns (IEntryPoint) {

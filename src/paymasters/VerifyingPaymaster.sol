@@ -15,6 +15,10 @@ import "@account-abstraction/contracts/core/UserOperationLib.sol";
 /// - paymasterAndData = abi.encode(paymasterAddr, validUntil, validAfter, policyHash, signature)
 
 contract VerifyingPaymaster is BasePaymaster {
+    // --- constants ---
+    // Paymaster data layout sizes used in paymasterAndData prefix (without signature)
+    // validUntil(6) | validAfter(6) | target(20) | selector(4) | subsidyBps(2)
+    uint256 internal constant PAYMASTER_DATA_SIZE = 6 + 6 + 20 + 4 + 2; // 38
     struct PaymasterData {
         uint48 validUntil;
         uint48 validAfter;
@@ -50,13 +54,22 @@ contract VerifyingPaymaster is BasePaymaster {
             return ("", _packValidationData(true, 0, 0));
         }
         // 3) 정적 가스필드 포함하여 정책서명 메시지 구성(바꿔치기 방지)
-        (, uint256 validationGasLimit, uint256 postOpGasLimit) =
-            UserOperationLib.unpackPaymasterStaticFields(userOp.paymasterAndData);
-        bytes32 dataHash = getHash(userOpHash, paymasterData, uint128(validationGasLimit), uint128(postOpGasLimit));
+        // userOpHash from EntryPoint includes the full paymasterAndData (including policy signature),
+        // which creates a circular dependency. Recompute a temporary hash that excludes the policy signature.
+        bool sigFailed;
+        {
+            (, uint256 validationGasLimit, uint256 postOpGasLimit) =
+                UserOperationLib.unpackPaymasterStaticFields(userOp.paymasterAndData);
 
-        // 4) 정책 서명 검증 (EIP-191)
-        address recovered = ECDSA.recover(ECDSA.toEthSignedMessageHash(dataHash), sig);
-        bool sigFailed = (recovered != policySigner);
+            bytes memory pmDataPrefix = _paymasterDataPrefix(userOp.paymasterAndData);
+            PackedUserOperation memory userOpNoPolicySig = userOp;
+            userOpNoPolicySig.paymasterAndData = pmDataPrefix;
+
+            bytes32 tmpHash = entryPoint.getUserOpHash(userOpNoPolicySig);
+            bytes32 dataHash = _computePolicyMessage(tmpHash, paymasterData, uint128(validationGasLimit), uint128(postOpGasLimit));
+            address recovered = _recoverPolicySigner(dataHash, sig);
+            sigFailed = (recovered != policySigner);
+        }
 
         // pack validation data 
         validationData = _packValidationData(sigFailed, paymasterData.validUntil, paymasterData.validAfter);
@@ -66,9 +79,8 @@ contract VerifyingPaymaster is BasePaymaster {
             emit Sponsored(userOpHash, userOp.sender, paymasterData.validUntil, paymasterData.validAfter);
         }
 
-        // context to be passed to postOp
-        // TODO: add subsidy for tx
-        context = "";
+        // context to be passed to postOp (unused for now)
+        context = _buildContext(paymasterData, userOp.sender);
     }
 
     function _parsePaymasterData(bytes calldata paymasterAndData)
@@ -101,6 +113,43 @@ contract VerifyingPaymaster is BasePaymaster {
                 postOpGasLimit
             )
         );
+    }
+
+    // --- internal helpers ---
+
+    function _paymasterDataPrefix(bytes calldata paymasterAndData)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        // prefix until the end of PaymasterData (without trailing signature)
+        return paymasterAndData[:PAYMASTER_DATA_OFFSET + PAYMASTER_DATA_SIZE];
+    }
+
+    function _computePolicyMessage(
+        bytes32 tmpUserOpHash,
+        PaymasterData memory p,
+        uint128 validationGasLimit,
+        uint128 postOpGasLimit
+    ) internal pure returns (bytes32) {
+        return getHash(tmpUserOpHash, p, validationGasLimit, postOpGasLimit);
+    }
+
+    function _recoverPolicySigner(bytes32 dataHash, bytes memory sig)
+        internal
+        view
+        returns (address)
+    {
+        return ECDSA.recover(ECDSA.toEthSignedMessageHash(dataHash), sig);
+    }
+
+    function _buildContext(PaymasterData memory /*p*/, address /*sender*/)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        // hook for future use (e.g., subsidy context)
+        return "";
     }
 
     function _extractTargetAndSelector(bytes calldata callData)

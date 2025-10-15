@@ -60,54 +60,18 @@ contract VerifyingPaymasterTest is Test {
 
     // ✅ 해피패스: target/selector 일치 → 성공
     function test_validatePaymasterUserOp() public {
-        // 1) callData = Account.execute(target, value, data) 대신, 예제에선 target의 단일 함수 호출 데이터 자체를 쓴다고 가정
-        // 실제 프로젝트에선 account.execute(...) 인코딩을 넣고, 그 안에서 target/selector를 디코딩하세요.
-
+        // 1) callData 준비
         bytes memory callData = _getMintOrBurnData(receiver, MINT_AMOUNT, true);
 
-        // 2) PackedUserOperation 준비 (필요한 필드만 채움)
-        PackedUserOperation memory userOp;
-        userOp.sender = address(0xCAFE); // 테스트용 더미
-        userOp.callData = callData;
-        userOp.accountGasLimits = _packAccountGas(200_000, 0); // verification, call (대략치)
-        userOp.gasFees = _packGasFees(1 gwei, 30 gwei);
+        // 2) PackedUserOperation 준비 (mint 전용, callGas는 검증에 영향 없음)
+        PackedUserOperation memory userOp = _getPackedUserOp(receiver, callData);
 
-        // 3) paymasterAndData = addr(20) | pmValGas(16) | postOpGas(16) | encoded(PaymasterData...) | sig
-        uint128 pmValGas = 60_000;
-        uint128 postOpGas = 30_000;
+        // 3) paymasterAndData 조립(프리픽스 → tempHash → 정책서명)
+        _setPaymasterData(userOp);
 
-        // 정책 데이터 (옵션1: 필요한 필드만)
-        VerifyingPaymaster.PaymasterData memory p = VerifyingPaymaster.PaymasterData({
-            validUntil: uint48(block.timestamp + 1 days),
-            validAfter: uint48(0),
-            target: address(token),
-            selector: ERC20Mock.mint.selector,
-            subsidyBps: 0
-        });
-
-        bytes32 userOpHash = keccak256("dummy"); // 테스트에선 임의 값 사용(EntryPoint가 넘겨준다고 가정)
-        bytes32 m = paymaster.getHash(userOpHash, p, pmValGas, postOpGas); // v0.8: 우리 컨트랙트의 정책해시(옵션1)
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mockSignerPk, ECDSA.toEthSignedMessageHash(m));
-        bytes memory sig = abi.encodePacked(r, s, v);
-        bytes memory paymasterAndData = bytes.concat(
-            bytes20(address(paymaster)),
-            bytes16(pmValGas),
-            bytes16(postOpGas),
-            // PMD (struct 밖 시그니처!) = 6 | 6 | 20 | 4 | 2
-            bytes6(p.validUntil),
-            bytes6(p.validAfter),
-            bytes20(p.target),
-            bytes4(p.selector),
-            bytes2(p.subsidyBps),
-            sig
-        );
-
-        userOp.paymasterAndData = paymasterAndData;
-
-        // 4) EntryPoint 가장해서 호출
+        // 4) EntryPoint 가장해서 호출 (userOpHash는 EP가 내부에서 계산하므로 여기선 참고용으로 전달)
+        bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
         vm.prank(address(entryPoint));
-        // maxCost는 테스트에 영향 없음(정책검증 위주)
         (bytes memory ctx, uint256 vd) = paymaster.validatePaymasterUserOp(userOp, userOpHash, 0);
         // 서명 성공 + 정책 일치 → SIG OK (vd == 0)
         assertEq(vd & ((1 << 160) - 1), 0, "sig validation failed");
@@ -121,53 +85,18 @@ contract VerifyingPaymasterTest is Test {
 
     //  미스매치: selector가 다르면 리버트
     function test_validatePaymasterUserOp_invalidSelector() public {
-        bytes memory innerData = abi.encodeWithSelector(ERC20Mock.burn.selector, address(0xBEEF), 100);
-        bytes memory callData = abi.encodeWithSelector(SentinelAccount.execute.selector, address(token), 0, innerData);
+        // burn을 호출하는 callData (paymaster 정책은 mint만 허용)
+        bytes memory callData = _getMintOrBurnData(receiver, 100, false);
 
-        // 2) PackedUserOperation 준비 (필요한 필드만 채움)
-        PackedUserOperation memory userOp;
-        userOp.sender = address(0xCAFE); // 테스트용 더미
-        userOp.callData = callData;
-        userOp.accountGasLimits = _packAccountGas(200_000, 0); // verification, call (대략치)
-        userOp.gasFees = _packGasFees(1 gwei, 30 gwei);
+        // 2) PackedUserOperation 준비 (sender는 더미)
+        PackedUserOperation memory userOp = _getPackedUserOp(receiver, callData);
 
-        // 3) paymasterAndData = addr(20) | pmValGas(16) | postOpGas(16) | encoded(PaymasterData...) | sig
-        uint128 pmValGas = 60_000;
-        uint128 postOpGas = 30_000;
-
-        // 정책 데이터 (옵션1: 필요한 필드만)
-        VerifyingPaymaster.PaymasterData memory p = VerifyingPaymaster.PaymasterData({
-            validUntil: uint48(block.timestamp + 1 days),
-            validAfter: uint48(0),
-            target: address(token),
-            selector: ERC20Mock.mint.selector,
-            subsidyBps: 0
-        });
-
-        bytes32 userOpHash = keccak256("dummy"); // 테스트에선 임의 값 사용(EntryPoint가 넘겨준다고 가정)
-        bytes32 m = paymaster.getHash(userOpHash, p, pmValGas, postOpGas); // v0.8: 우리 컨트랙트의 정책해시(옵션1)
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mockSignerPk, ECDSA.toEthSignedMessageHash(m));
-        bytes memory sig = abi.encodePacked(r, s, v);
-        bytes memory paymasterAndData = bytes.concat(
-            bytes20(address(paymaster)),
-            bytes16(pmValGas),
-            bytes16(postOpGas),
-            // PMD (struct 밖 시그니처!) = 6 | 6 | 20 | 4 | 2
-            bytes6(p.validUntil),
-            bytes6(p.validAfter),
-            bytes20(p.target),
-            bytes4(p.selector),
-            bytes2(p.subsidyBps),
-            sig
-        );
-
-        userOp.paymasterAndData = paymasterAndData;
+        // 3) paymasterAndData 조립(정책은 mint.selector로 서명) → selector 미스매치 유도
+        _setPaymasterData(userOp);
 
         // 4) EntryPoint 가장해서 호출
+        bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
         vm.prank(address(entryPoint));
-        // maxCost는 테스트에 영향 없음(정책검증 위주)
-        // vm.expectRevert(VerifyingPaymaster.InvalidTargetOrSelector.selector);
         (, uint256 vd) = paymaster.validatePaymasterUserOp(userOp, userOpHash, 0);
         assertTrue((vd & ((1 << 160) - 1)) != 0);
     }
