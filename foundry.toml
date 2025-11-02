@@ -1,8 +1,41 @@
 [profile.default]
 src = "src"
 out = "out"
-libs = ["lib"]
+libs = ["lib", "dependencies"]
+solc_version = "0.8.30"
+optimizer = true
+optimizer_runs = 200
+cbor_metadata = true
+evm_version = "cancun"
+extra_output_files = ["metadata"]
 
-# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+[dependencies]
+forge-std = "1.11.0"
+"@openzeppelin-contracts" = "5.5.0"
+eth-infinitism-account-abstraction = "0.8.0"
+solady = "0.1.26"
+
+[soldeer]
+# whether soldeer manages remappings
+remappings_generate = true
+ 
+# whether soldeer re-generates all remappings when installing, updating or uninstalling deps
+remappings_regenerate = false
+ 
+# whether to suffix the remapping with the version: `name-a.b.c`
+remappings_version = false
+ 
+# a prefix to add to the remappings ("@" would give `@name`)
+remappings_prefix = "@"
+ 
+# where to store the remappings ("txt" for `remappings.txt` or "config" for `foundry.toml`)
+# ignored when `soldeer.toml` is used as config (uses `remappings.txt`)
+remappings_location = "txt"
+
+[profile.verify.etherscan]
+mainnet_fork = { key = "${TENDERLY_ACCESS_TOKEN}", url = "${MAINNET_FORK_RPC_URL}/verify/etherscan", chain=111222111  }
+
 [rpc_endpoints]
 mainnet_fork = "${MAINNET_FORK_RPC_URL}"
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

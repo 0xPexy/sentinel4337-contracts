@@ -4,7 +4,7 @@ out/
 
 # Ignores development broadcast logs
 !/broadcast
-/broadcast/*/31337/
+/broadcast/*/*/
 /broadcast/**/dry-run/
 
 # Docs
@@ -13,4 +13,7 @@ docs/
 # Dotenv file
 .env
 
-/broadcast/*
+/cache
+
+# Soldeer
+/dependencies

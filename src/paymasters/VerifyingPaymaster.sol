@@ -3,32 +3,28 @@ pragma solidity 0.8.30;
 
 import {
     BasePaymaster,
-    IPaymaster,
     IEntryPoint,
     PackedUserOperation
 } from "@account-abstraction/contracts/core/BasePaymaster.sol";
-import {_packValidationData} from "@account-abstraction/contracts/core/Helpers.sol";
 import {ECDSA} from "@solady/utils/ECDSA.sol";
-import "@account-abstraction/contracts/core/UserOperationLib.sol";
-/// @notice Verify offchain generated sig & deadline
-/// - v0.8 BasePaymaster: use _packValidationData, _requireFromEntryPoint
-/// - paymasterAndData = abi.encode(paymasterAddr, validUntil, validAfter, policyHash, signature)
+import {_packValidationData} from "@account-abstraction/contracts/core/Helpers.sol";
+
 
 contract VerifyingPaymaster is BasePaymaster {
     // --- constants ---
     // Paymaster data layout sizes used in paymasterAndData prefix (without signature)
-    // validUntil(6) | validAfter(6) | target(20) | selector(4) | subsidyBps(2)
-    uint256 internal constant PAYMASTER_DATA_SIZE = 6 + 6 + 20 + 4 + 2; // 38
+    // validUntil(6) | validAfter(6) | target(20) | selector(4)
+    uint256 internal constant PAYMASTER_DATA_SIZE = 6 + 6 + 20 + 4; // 38
 
     struct PaymasterData {
         uint48 validUntil;
         uint48 validAfter;
         address target; // allowed contract
         bytes4 selector; // allowed function
-        uint16 subsidyBps; // subsidy ratio (0~10000) 10000=100%
     }
 
-    address public immutable policySigner; // offchain policy signer
+    // TODO: add updating policySigner
+    address public policySigner; // offchain policy signer
 
     event Sponsored(bytes32 indexed userOpHash, address indexed sender, uint48 validUntil, uint48 validAfter);
 
@@ -59,13 +55,12 @@ contract VerifyingPaymaster is BasePaymaster {
         // which creates a circular dependency. Recompute a temporary hash that excludes the policy signature.
         bool sigFailed;
         {
-            bytes memory pmDataPrefix = _paymasterDataPrefix(userOp.paymasterAndData);
+            bytes memory pmDataPrefix = _pmDataWithoutSig(userOp.paymasterAndData);
             PackedUserOperation memory userOpNoPolicySig = userOp;
             userOpNoPolicySig.paymasterAndData = pmDataPrefix;
 
             bytes32 opHash = entryPoint.getUserOpHash(userOpNoPolicySig);
-            bytes32 messageHash = ECDSA.toEthSignedMessageHash(opHash);
-            address recovered = ECDSA.recover(messageHash, sig);
+            address recovered = ECDSA.recover(opHash, sig);
             sigFailed = (recovered != policySigner);
         }
 
@@ -90,13 +85,12 @@ contract VerifyingPaymaster is BasePaymaster {
         paymasterData.validAfter = uint48(bytes6(paymasterAndData[6:12]));
         paymasterData.target = address(bytes20(paymasterAndData[12:32]));
         paymasterData.selector = bytes4(paymasterAndData[32:36]);
-        paymasterData.subsidyBps = uint16(bytes2(paymasterAndData[36:38]));
-        signature = bytes(paymasterAndData[38:]);
+        signature = bytes(paymasterAndData[36:]);
     }
 
     // --- internal helpers ---
 
-    function _paymasterDataPrefix(bytes calldata paymasterAndData) internal pure returns (bytes memory) {
+    function _pmDataWithoutSig(bytes calldata paymasterAndData) internal pure returns (bytes memory) {
         // prefix until the end of PaymasterData (without trailing signature)
         return paymasterAndData[:PAYMASTER_DATA_OFFSET + PAYMASTER_DATA_SIZE];
     }
@@ -106,7 +100,7 @@ contract VerifyingPaymaster is BasePaymaster {
     }
 
     function _buildContext(PaymasterData memory, /*p*/ address /*sender*/ ) internal pure returns (bytes memory) {
-        // hook for future use (e.g., subsidy context)
+        // hook for future use
         return "";
     }
 

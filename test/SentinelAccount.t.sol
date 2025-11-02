@@ -1,30 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {Test, console2} from "forge-std/Test.sol";
-import {Deploy} from "script/Deploy.s.sol";
-import {ConfigHelper} from "script/ConfigHelper.s.sol";
+import {Test} from "forge-std/Test.sol";
 import {SentinelAccount} from "src/accounts/SentinelAccount.sol";
-import {VerifyingPaymaster} from "src/paymasters/VerifyingPaymaster.sol";
+import {EntryPoint} from "@account-abstraction/contracts/core/EntryPoint.sol";
 
-import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 
 contract SentinelAccountTest is Test {
-    ConfigHelper.NetworkConfig networkConfig;
-    SentinelAccount sentinelAccount;
-    VerifyingPaymaster paymaster;
-
-    ERC20Mock token;
+    SentinelAccount internal sentinelAccount;
+    ERC20Mock internal token;
+    address internal owner;
 
     function setUp() public {
-        Deploy deploy = new Deploy();
-        (networkConfig, sentinelAccount, paymaster) = deploy.deploySentinelAccountAndPaymaster();
+        owner = makeAddr("sentinelOwner");
+        EntryPoint entryPoint = new EntryPoint();
+        sentinelAccount = new SentinelAccount(entryPoint, owner);
         token = new ERC20Mock();
     }
 
     function test_ownerCanExecuteCommands() public {
         bytes memory functionData = _getMintTokenFunctionData(address(sentinelAccount), 1e18);
-        vm.prank(sentinelAccount.owner());
+        vm.prank(owner);
         sentinelAccount.execute(address(token), 0, functionData);
         assertEq(token.balanceOf(address(sentinelAccount)), 1e18);
     }

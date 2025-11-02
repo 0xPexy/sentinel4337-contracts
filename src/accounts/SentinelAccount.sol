@@ -7,7 +7,7 @@ import {SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS} from "@account-abstractio
 import {ECDSA} from "@solady/utils/ECDSA.sol";
 
 contract SentinelAccount is BaseAccount {
-    IEntryPoint private immutable _entryPoint;
+    IEntryPoint private immutable ENTRY_POINT;
     address public owner;
 
     error InvalidExecutor();
@@ -16,7 +16,7 @@ contract SentinelAccount is BaseAccount {
     event OwnerChanged(address indexed newOwner);
 
     constructor(IEntryPoint ep, address _owner) {
-        _entryPoint = ep;
+        ENTRY_POINT = ep;
         owner = _owner;
         emit OwnerChanged(owner);
     }
@@ -28,7 +28,7 @@ contract SentinelAccount is BaseAccount {
     }
 
     function entryPoint() public view override returns (IEntryPoint) {
-        return _entryPoint;
+        return ENTRY_POINT;
     }
 
     function _validateSignature(PackedUserOperation calldata userOp, bytes32 userOpHash)
