@@ -157,12 +157,8 @@ contract VerifyingPaymasterIntegrationTest is Test {
             bytes4(paymasterData.selector)
         );
 
-        bytes memory pmPrefix = bytes.concat(
-            bytes20(address(paymaster)),
-            bytes16(PM_VAL_GAS),
-            bytes16(POSTOP_GAS),
-            paymasterDataWithoutSig
-        );
+        bytes memory pmPrefix =
+            bytes.concat(bytes20(address(paymaster)), bytes16(PM_VAL_GAS), bytes16(POSTOP_GAS), paymasterDataWithoutSig);
 
         userOp.paymasterAndData = pmPrefix;
 

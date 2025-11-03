@@ -1,14 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {
-    BasePaymaster,
-    IEntryPoint,
-    PackedUserOperation
-} from "@account-abstraction/contracts/core/BasePaymaster.sol";
+import {BasePaymaster, IEntryPoint, PackedUserOperation} from "@account-abstraction/contracts/core/BasePaymaster.sol";
 import {ECDSA} from "@solady/utils/ECDSA.sol";
 import {_packValidationData} from "@account-abstraction/contracts/core/Helpers.sol";
-
 
 contract VerifyingPaymaster is BasePaymaster {
     // --- constants ---
@@ -99,7 +94,11 @@ contract VerifyingPaymaster is BasePaymaster {
         return ECDSA.recover(ECDSA.toEthSignedMessageHash(dataHash), sig);
     }
 
-    function _buildContext(PaymasterData memory, /*p*/ address /*sender*/ ) internal pure returns (bytes memory) {
+    function _buildContext(
+        PaymasterData memory,
+        /*p*/
+        address /*sender*/
+    ) internal pure returns (bytes memory) {
         // hook for future use
         return "";
     }

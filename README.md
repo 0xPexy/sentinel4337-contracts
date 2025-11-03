@@ -25,9 +25,13 @@
 - `make deploy_paymaster`
   - Deploys `VerifyingPaymaster` using `script/Deploy.s.sol:DeployVerifyingPaymaster`.
 - `make verify_factory CONTRACT=0xYourFactory [CHAIN=111222111]`
-  - Verifies the deployed `SimpleAccountFactory`.
+  - Verifies the deployed `SimpleAccountFactory` with the preset custom verifier.
 - `make verify_account CONTRACT=0xYourAccount [CHAIN=111222111]`
   - Verifies a deployed `SimpleAccount` proxy (optional).
+- `make verify_paymaster CONTRACT=0xYourPaymaster [CHAIN=111222111]`
+  - Verifies the deployed `VerifyingPaymaster`.
+- `make verify CONTRACT=0x... NAME=src/...:Contract [CHAIN=111222111]`
+  - Generic verification helper. Use the fully-qualified contract identifier (e.g., `src/paymasters/VerifyingPaymaster.sol:VerifyingPaymaster`).
 
 You can change the default chain id with `CHAIN=<id>`.
 

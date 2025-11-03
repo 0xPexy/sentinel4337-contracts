@@ -1,4 +1,4 @@
-.PHONY: deploy_factory deploy_paymaster verify_factory verify_account _require_contract
+.PHONY: deploy_factory deploy_paymaster verify verify_factory verify_account verify_paymaster _require_contract _require_name
 
 # Default chain id (custom mainnet fork in foundry.toml). Override with `make CHAIN=<id> ...`
 CHAIN ?= 111222111
@@ -24,9 +24,25 @@ verify_factory: _require_contract
 verify_account: _require_contract
 	FOUNDRY_PROFILE=verify forge verify-contract $(CONTRACT) SimpleAccount --chain-id $(CHAIN) --verifier custom
 
+# Verify the deployed VerifyingPaymaster contract.
+# Usage: make verify_paymaster CONTRACT=0xYourPaymaster CHAIN=111222111
+verify_paymaster: _require_contract
+	FOUNDRY_PROFILE=verify forge verify-contract $(CONTRACT) VerifyingPaymaster --chain-id $(CHAIN) --verifier custom
+
+# Generic verification target. NAME accepts fully-qualified contract identifier, e.g.
+#   make verify CONTRACT=0x... NAME=src/paymasters/VerifyingPaymaster.sol:VerifyingPaymaster
+verify: _require_contract _require_name
+	FOUNDRY_PROFILE=verify forge verify-contract $(CONTRACT) $(NAME) --chain-id $(CHAIN) --verifier custom
+
 # Internal: require CONTRACT to be set
 _require_contract:
 	@if [ -z "$(CONTRACT)" ]; then \
-		echo "Please provide CONTRACT address. e.g., make verify_factory CONTRACT=0xabc..."; \
+		echo "Please provide CONTRACT address. e.g., make verify CONTRACT=0xabc... NAME=src/...:Contract"; \
+		exit 1; \
+	fi
+
+_require_name:
+	@if [ -z "$(NAME)" ]; then \
+		echo "Please provide NAME (fully-qualified contract identifier)."; \
 		exit 1; \
 	fi
