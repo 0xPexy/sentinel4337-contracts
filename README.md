@@ -24,6 +24,8 @@
   - Deploys `SimpleAccountFactory` using `script/Deploy.s.sol:DeploySimpleAccountFactory`.
 - `make deploy_paymaster`
   - Deploys `VerifyingPaymaster` using `script/Deploy.s.sol:DeployVerifyingPaymaster`.
+- `make fund_account ADDRS='["0xAddr1","0xAddr2"]' [FUND_AMOUNT=0x...] [RPC_URL=mainnet_fork]`
+  - Calls Tenderly's `tenderly_setBalance` via `cast rpc` to credit the specified amount (default 10,000 ETH) to the JSON-array addresses on the configured RPC alias/URL.
 - `make verify_factory CONTRACT=0xYourFactory [CHAIN=111222111]`
   - Verifies the deployed `SimpleAccountFactory` with the preset custom verifier.
 - `make verify_account CONTRACT=0xYourAccount [CHAIN=111222111]`

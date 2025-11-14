@@ -1,7 +1,9 @@
-.PHONY: deploy_factory deploy_paymaster verify verify_factory verify_account verify_paymaster _require_contract _require_name
+.PHONY: deploy_factory deploy_paymaster fund_account verify verify_factory verify_account verify_paymaster _require_contract _require_name _require_addrs
 
 # Default chain id (custom mainnet fork in foundry.toml). Override with `make CHAIN=<id> ...`
 CHAIN ?= 111222111
+RPC_URL ?= mainnet_fork
+FUND_AMOUNT ?= 0x21e19e0c9bab2400000
 
 install:
 	forge soldeer install
@@ -13,6 +15,12 @@ deploy_factory:
 # Deploy the VerifyingPaymaster (policy-signed sponsor)
 deploy_paymaster:
 	forge script script/Deploy.s.sol:DeployVerifyingPaymaster --rpc-url mainnet_fork --broadcast --account dev1
+
+# Fund one or more addresses with FUND_AMOUNT wei (default 10,000 ETH).
+# Provide ADDRS as a JSON array string to avoid shell escaping issues, e.g.
+#   make fund_account ADDRS='["0xabc...","0xdef..."]'
+fund_account: _require_addrs
+	cast rpc tenderly_setBalance '[$(ADDRS), "$(FUND_AMOUNT)"]' --raw --rpc-url $(RPC_URL)
 
 # Verify the deployed SimpleAccountFactory contract.
 # Usage: make verify_factory CONTRACT=0xYourFactory CHAIN=111222111
@@ -44,5 +52,12 @@ _require_contract:
 _require_name:
 	@if [ -z "$(NAME)" ]; then \
 		echo "Please provide NAME (fully-qualified contract identifier)."; \
+		exit 1; \
+	fi
+
+
+_require_addrs:
+	@if [ -z "$(ADDRS)" ]; then \
+		echo "Please provide ADDRS as a JSON array. e.g., make fund_account ADDRS='[\"0xabc\",\"0xdef\"]'"; \
 		exit 1; \
 	fi
